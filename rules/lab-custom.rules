@@ -1,0 +1,19 @@
+# Custom Suricata rules — Network Attack & Detection Lab
+# Loaded on OPNsense (Services > Intrusion Detection). SID range 9000010-9000040.
+# Result-based detections: they match the outcome of an attack, not one payload variant.
+
+# Command injection -> RCE: uid=/gid= command output in the server's response
+alert http $HOME_NET any -> any any (msg:"LAB Command injection output (uid=)"; flow:established,to_client; http.response_body; content:"uid="; content:"gid="; distance:0; classtype:web-application-attack; sid:9000011; rev:1;)
+
+# Web shell: a command parameter (c=) on an uploaded script under /hackable/uploads/
+# (tuned from an over-broad "c= anywhere" rule to cut false positives to zero)
+alert http any any -> $HOME_NET any (msg:"LAB Web shell access uploads+c= v2"; flow:established,to_server; http.uri; content:"/hackable/uploads/"; content:"c="; distance:0; classtype:web-application-attack; sid:9000010; rev:4;)
+
+# Local file inclusion: /etc/passwd disclosure attempt in the request URI
+alert http any any -> $HOME_NET any (msg:"LAB LFI /etc/passwd attempt"; flow:established,to_server; http.uri; content:"etc/passwd"; nocase; classtype:web-application-attack; sid:9000012; rev:1;)
+
+# DNS tunnelling / exfiltration: a burst of queries to one domain (20 in 10s)
+alert dns any any -> any any (msg:"LAB Possible DNS tunneling to attacker.lab"; dns.query; content:"attacker.lab"; nocase; threshold:type both, track by_src, count 20, seconds 10; classtype:bad-unknown; sid:9000030; rev:1;)
+
+# Bind shell: uid=/gid= shell command output over raw TCP (any port, not just HTTP)
+alert tcp $HOME_NET any -> any any (msg:"LAB Shell command output (id)"; flow:established; content:"uid="; content:"gid="; distance:0; classtype:trojan-activity; sid:9000040; rev:1;)
